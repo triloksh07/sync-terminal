@@ -1,0 +1,21 @@
+{
+  "name": "@syncpty/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Packet protocol for SyncPTY",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@msgpack/msgpack": "^3.1.3",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  }
+}

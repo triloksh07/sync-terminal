@@ -1,0 +1,18 @@
+{
+  "name": "@syncpty/auth",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Authentication utilities for SyncPTY",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  }
+}

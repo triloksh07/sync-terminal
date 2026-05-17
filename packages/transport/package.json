@@ -1,0 +1,20 @@
+{
+  "name": "@syncpty/transport",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Transport layer abstraction for SyncPTY",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@syncpty/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  }
+}

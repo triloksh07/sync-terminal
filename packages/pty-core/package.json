@@ -1,0 +1,21 @@
+{
+  "name": "@syncpty/pty-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PTY abstraction layer for SyncPTY",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "node-pty": "^1.0.0",
+    "pino": "^8.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  }
+}
