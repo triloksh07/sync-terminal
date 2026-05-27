@@ -8,10 +8,12 @@
     "dev": "pnpm -r dev",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
-    "clean": "pnpm -r clean"
+    "clean": "pnpm -r clean",
+    "clean:cache": "pnpm -r exec rm -rf dist .cache .turbo"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
+    "turbo": "^2.9.14",
     "typescript": "^5.3.3"
   },
   "engines": {

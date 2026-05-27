@@ -6,7 +6,7 @@ const program = new Command();
 
 program
   .name('syncpty')
-  .description('SyncPTY - CLI-first realtime terminal sharing system')
+  .description('SyncPTY - realtime terminal sharing system')
   .version('0.1.0');
 
 program

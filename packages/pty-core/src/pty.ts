@@ -1,4 +1,5 @@
 import * as pty from 'node-pty';
+import os from 'os';
 import { EventEmitter } from 'events';
 import { PTYOptions, PTYEvents } from './types';
 import pino from 'pino';
@@ -11,6 +12,10 @@ export class PTY extends EventEmitter {
 
   constructor(private options: PTYOptions) {
     super();
+
+    if(!this.options.shell){
+      this.options.shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash' ;
+    }
   }
 
   /**

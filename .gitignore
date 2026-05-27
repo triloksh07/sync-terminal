@@ -15,6 +15,7 @@ npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.turbo
 
 # Editor
 .vscode/
@@ -41,5 +42,6 @@ test
 tmp/
 temp/
 
+plan
 detail-spec.txt
 .windsurf/

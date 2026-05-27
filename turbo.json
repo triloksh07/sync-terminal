@@ -1,0 +1,16 @@
+{
+    "$schema": "https://turbo.build/schema.json",
+    "tasks": {
+      "build": {
+        "dependsOn": ["^build"],
+        "outputs": ["dist/**", "build/Release/pty.node"]
+      },
+      "dev": {
+        "cache": false,
+        "persistent": true
+      },
+      "clean": {
+        "cache": false
+      }
+    }
+  }
