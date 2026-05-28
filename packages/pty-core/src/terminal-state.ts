@@ -1,77 +1,80 @@
-import { execSync } from 'child_process';
-import { isatty } from 'tty';
+import { execSync } from "child_process";
+import { isatty } from "tty";
 
-let savedTerminalState: string | null = null;
+// Use a private state cache map to allow tracking multiple sequential state transitions safely
+const stateRegistry = new Map<string, string>();
 
-/**
- * Check if stdin is a TTY
- */
 function isStdinTTY(): boolean {
   return isatty(process.stdin.fd);
 }
 
 /**
- * Save the current terminal state to restore it later
+ * Saves the current TTY line profile state under a specific key tag name.
  */
-export function saveTerminalState(): void {
-  if (!isStdinTTY()) {
-    // Not running in a TTY, skip terminal state management
-    return;
-  }
+export function saveTerminalState(key: string = "default"): void {
+  if (!isStdinTTY()) return;
 
   try {
-    savedTerminalState = execSync('stty -g', { encoding: 'utf-8' }).trim();
+    // Capture the exact hex configuration flags of the active terminal session
+    const rawState = execSync("stty -g", {
+      encoding: "utf-8",
+      stdio: ["inherit", "pipe", "ignore"],
+    }).trim();
+
+    stateRegistry.set(key, rawState);
   } catch (error) {
-    // If stty fails, we'll try to restore with 'stty sane' later
-    // Silently fail - this is expected when not in a proper terminal
+    // Fallback silent capture safety bounds
   }
 }
 
 /**
- * Restore the previously saved terminal state
+ * Restores the terminal line state cleanly using the cached key signature profile.
  */
-export function restoreTerminalState(): void {
-  if (!isStdinTTY()) {
-    // Not running in a TTY, skip terminal state restoration
-    return;
+export function restoreTerminalState(key: string = "default"): void {
+  if (!isStdinTTY()) return;
+
+  const targetState = stateRegistry.get(key);
+
+  if (targetState) {
+    try {
+      // Feed the state flags directly back into the system line hardware layer
+      execSync(`stty ${targetState}`, { stdio: "inherit" });
+      return;
+    } catch (error) {
+      // Fall through to emergency baseline recovery if configuration flags reject
+    }
   }
 
-  if (savedTerminalState) {
-    try {
-      execSync(`stty ${savedTerminalState}`, { stdio: 'inherit' });
-    } catch (error) {
-      // Fallback to stty sane if restoration fails
-      try {
-        execSync('stty sane', { stdio: 'inherit' });
-      } catch (fallbackError) {
-        // Silently fail - terminal state restoration is best-effort
-      }
-    }
-  } else {
-    // If no saved state, try stty sane as a fallback
-    try {
-      execSync('stty sane', { stdio: 'inherit' });
-    } catch (error) {
-      // Silently fail
-    }
+  // EMERGENCY FALLBACK: If raw string restoration fails, restore control options cleanly
+  try {
+    // 'stty echo icanon' force-restores visible text typing and normal carriage returns
+    execSync("stty echo icanon iexten isig", { stdio: "inherit" });
+  } catch (fallbackError) {
+    // Silently terminate backup loop if standard descriptors are disconnected
   }
 }
 
 /**
- * Get the current terminal size
+ * Reads terminal viewport metrics dynamically utilizing absolute system queries.
  */
 export function getTerminalSize(): { cols: number; rows: number } {
+  // Use explicit environment property hooks before falling back to system binary spawning costs
+  if (process.stdout.columns && process.stdout.rows) {
+    return { cols: process.stdout.columns, rows: process.stdout.rows };
+  }
+
   if (!isStdinTTY()) {
-    // Not running in a TTY, return default size
     return { cols: 80, rows: 24 };
   }
 
   try {
-    const stdout = execSync('stty size', { encoding: 'utf-8' }).trim();
-    const [rows, cols] = stdout.split(' ').map(Number);
-    return { cols, rows };
+    const stdout = execSync("stty size", {
+      encoding: "utf-8",
+      stdio: ["inherit", "pipe", "ignore"],
+    }).trim();
+    const [rows, cols] = stdout.split(" ").map(Number);
+    return { cols: cols || 80, rows: rows || 24 };
   } catch (error) {
-    // Default fallback size
     return { cols: 80, rows: 24 };
   }
 }
