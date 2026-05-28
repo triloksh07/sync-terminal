@@ -4,9 +4,5 @@
     "outDir": "./dist",
     "rootDir": "./src"
   },
-  "include": ["src/**/*"],
-  "references": [
-    { "path": "../../packages/transport" },
-    { "path": "../../packages/protocol" }
-  ]
+  "include": ["src/prod-cli-agent.ts"]
 }

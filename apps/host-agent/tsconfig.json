@@ -5,5 +5,12 @@
     "rootDir": "./src"
   },
   "include": ["src"],
+  "exclude": [
+    "src/agent-script-new.ts",
+    "src/cli-test.ts",
+    "src/cli.ts",
+    "src/demo-pty-connect.ts",
+    "src/local-bridge.ts",
+  ],
   "references": []
 }

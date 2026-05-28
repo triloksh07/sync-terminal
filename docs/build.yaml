@@ -2,6 +2,7 @@ pnpm --filter @syncpty/pty-core build
 pnpm --filter @syncpty/protocol build
 pnpm --filter @syncpty/transport build
 pnpm --filter @syncpty/host-agent build
+pnpm --filter @syncpty/cli-client build
 
 pnpm --filter @syncpty/host-agent share --dir ~/
 
@@ -9,3 +10,7 @@ node  ./dist/spawn-new-agent.js share --dir ~/
 node  ./dist/agent-script-new.js share --dir ~/
 
 node  ./dist/agent-script-new.js connect 004321
+
+
+node  ./dist/prod-host-agent.js share --dir ~/
+node  ./dist/prod-cli-agent.js connect 004321

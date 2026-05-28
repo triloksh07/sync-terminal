@@ -23,6 +23,9 @@ importers:
       '@syncpty/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@syncpty/pty-core':
+        specifier: workspace:*
+        version: link:../../packages/pty-core
       '@syncpty/transport':
         specifier: workspace:*
         version: link:../../packages/transport

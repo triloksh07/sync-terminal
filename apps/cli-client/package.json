@@ -6,7 +6,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "syncpty-connect": "./dist/cli.js"
+    "syncpty-connect": "./dist/prod-cli-agent.js"
   },
   "scripts": {
     "build": "tsc",
@@ -16,6 +16,7 @@
   "dependencies": {
     "@syncpty/protocol": "workspace:*",
     "@syncpty/transport": "workspace:*",
+    "@syncpty/pty-core": "workspace:*",
     "commander": "^12.0.0",
     "minimist": "^1.2.8"
   },
