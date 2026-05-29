@@ -1,7 +1,6 @@
-export { PTY } from "./pty";
-export { PseudoTerminal } from "./pty-2";
-// export type { PTYOptions, PTYEvents } from "./types";
-export type { PtyOptions as PTYOptions } from "./pty-2";
+export { PseudoTerminal } from "./pty";
+export type { PtyOptions as PTYOptions } from "./pty";
+export type { PtyOptions } from "./pty";
 export { PTYProcessManager } from "./process-manager";
 export type { ActiveProcessInfo } from "./process-manager";
 export {
