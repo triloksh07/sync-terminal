@@ -20,6 +20,9 @@ importers:
 
   apps/cli-client:
     dependencies:
+      '@syncpty/client-core':
+        specifier: workspace:*
+        version: link:../../packages/client-core
       '@syncpty/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -32,9 +35,6 @@ importers:
       commander:
         specifier: ^12.0.0
         version: 12.1.0
-      minimist:
-        specifier: ^1.2.8
-        version: 1.2.8
     devDependencies:
       '@types/minimist':
         specifier: ^1.2.5
@@ -114,6 +114,19 @@ importers:
       '@types/node':
         specifier: ^20.11.0
         version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
+  packages/client-core:
+    dependencies:
+      '@syncpty/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@syncpty/transport':
+        specifier: workspace:*
+        version: link:../transport
+    devDependencies:
       typescript:
         specifier: ^5.3.3
         version: 5.9.3

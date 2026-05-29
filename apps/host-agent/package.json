@@ -6,7 +6,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "syncpty-host": "./dist/prod-host-agent.js"
+    "syncpty": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",

@@ -6,7 +6,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "syncpty-connect": "./dist/prod-cli-agent.js"
+    "syncpty": "./dist/gpt-cli.js"
   },
   "scripts": {
     "build": "tsc",
@@ -17,8 +17,8 @@
     "@syncpty/protocol": "workspace:*",
     "@syncpty/transport": "workspace:*",
     "@syncpty/pty-core": "workspace:*",
-    "commander": "^12.0.0",
-    "minimist": "^1.2.8"
+    "@syncpty/client-core": "workspace:*",
+    "commander": "^12.0.0"
   },
   "devDependencies": {
     "@types/minimist": "^1.2.5",

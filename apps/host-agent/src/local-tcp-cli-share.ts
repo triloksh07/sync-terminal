@@ -8,18 +8,21 @@ import {
   restoreTerminalState,
 } from "@syncpty/pty-core";
 import { Protocol, PacketType } from "@syncpty/protocol";
-import { LocalTransport } from "@syncpty/transport";
+import { LocalTransport, type Transport } from "@syncpty/transport";
 
 const program = new Command();
 
 program
-  .name("syncpty-host")
-  .description("SyncPTY Host Agent: Secure local terminal sharing engine")
+  .name("syncpty")
+  .description("SyncPTY: Instant terminal sharing")
   .version("0.0.5");
 
+// ==========================================
+// COMMAND: syncpty share
+// ==========================================
 program
   .command("share")
-  .description("Expose your local terminal session securely over loopback")
+  .description("Expose your local terminal session securely")
   .option(
     "-r, --readonly",
     "Pipe stdout to client but drop all incoming client stdin packets",
@@ -40,6 +43,9 @@ program
     console.log(
       `\x1b[35m[SyncPTY Host]\x1b[0m Initializing secure loopback gateway...`
     );
+    console.log(
+      `\x1b[90mConfig - Dir: ${resolvedDir} | ReadOnly: ${options.readonly}\x1b[0m`
+    );
 
     const transport = new LocalTransport({ isHost: true, port: TARGET_PORT });
     await transport.connect();
@@ -48,10 +54,10 @@ program
     console.log(`  SyncPTY Host Agent Active`);
     console.log(`  Session Code: [ \x1b[1;32m${sessionCode}\x1b[0m ]`);
     console.log(`=================================\n`);
-    console.log("Waiting for a real client connection knock...");
+    console.log("Waiting for a client...");
 
     // INTERCEPT ENGINE: Monitor the network wire for incoming client handshakes
-    transport.onData((array) => {
+    const unsubscribeHandshake = transport.onData((array) => {
       try {
         const packet = Protocol.deserialize(array);
 
@@ -65,6 +71,7 @@ program
           // Trigger the interactive approval flow intercepting terminal focus
           requestHostPermission(clientIdentity, async (approved) => {
             if (approved) {
+              unsubscribeHandshake();
               await executeActiveStreamingSession(
                 resolvedDir,
                 options.readonly,
@@ -115,7 +122,7 @@ function requestHostPermission(
 async function executeActiveStreamingSession(
   workingDir: string,
   isReadOnly: boolean,
-  transport: LocalTransport
+  transport: Transport
 ) {
   console.log(
     `\r\x1b[32m[✓] Access Authorized.\x1b[0m Spawning authoritative PTY shell...\n`
@@ -132,13 +139,27 @@ async function executeActiveStreamingSession(
 
   sessionPTY.spawn();
 
-  // Clear the primary knock listener on the transport layer to stream cleanly
-  transport.onData(() => {});
+  process.stdout.on("resize", () => {
+    sessionPTY.resize(process.stdout.columns || 80, process.stdout.rows || 24);
+  });
 
   // 1. OUTBOUND MULTIPLEXING: Route raw PTY screen updates to both displays
   sessionPTY.onData((rawTerminalBytes) => {
     process.stdout.write(rawTerminalBytes); // Local monitor paint
-    transport.send(Protocol.serialize(PacketType.OUTPUT, rawTerminalBytes)); // Client network delivery
+
+    //  TODO: when integrate WebRTC Check state explicitly
+
+    // Client network delivery
+    try {
+      const packedFrame = Protocol.serialize(
+        PacketType.OUTPUT,
+        rawTerminalBytes
+      );
+      transport.send(packedFrame);
+    } catch (err: any) {
+      // Suppress network pipe drops gracefully
+      console.debug(`[DEBUG] Transport send failed: ${err.message}`);
+    }
   });
 
   // 2. INBOUND MULTIPLEXING: Process incoming client network keystrokes safely
@@ -166,9 +187,10 @@ async function executeActiveStreamingSession(
   transport.onClose(() => {
     process.stdin.setRawMode(false);
     process.stdin.pause();
-    restoreTerminalState("host_session"); // Recover pristine line metrics cleanly
+    restoreTerminalState("host_session");
+
     console.log(
-      `\n\r\x1b[33m⚠️  [SyncPTY] Remote client detached cleanly. Local control restored.\x1b[0m\n`
+      `\n\r\x1b[33m⚠️  [SyncPTY Notification] Remote client detached cleanly. Local control restored.\x1b[0m\n`
     );
   });
 
