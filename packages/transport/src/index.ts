@@ -1,2 +1,2 @@
-import { LocalTransportOptions, LocalTransport } from "./local-transport";
-export { LocalTransportOptions, LocalTransport };
+export * from "./types";
+export * from "./local-transport";

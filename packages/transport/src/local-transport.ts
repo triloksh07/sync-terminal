@@ -1,4 +1,5 @@
 import net from "net";
+import { Transport } from "./types";
 
 export interface LocalTransportOptions {
   port?: number;
@@ -10,20 +11,24 @@ export interface LocalTransportOptions {
  * Portable Local TCP/UDS Transport Loopback Broker
  * - Manage discrete streaming lifecycle transitions and type boundaries safely.
  */
-export class LocalTransport {
+export class LocalTransport implements Transport {
   private server: net.Server | null = null;
   private socket: net.Socket | null = null;
-  private onDataCallback: ((data: Uint8Array) => void) | null = null;
-  private onCloseCallback: (() => void) | null = null;
 
-  constructor(private options: LocalTransportOptions) {}
+  private readonly dataListeners = new Set<(data: Uint8Array) => void>();
+
+  private readonly closeListeners = new Set<() => void>();
+
+  private terminated = false;
+
+  constructor(private readonly options: LocalTransportOptions) {}
 
   /**
    * Initializes network pipelines and handles state progression based on execution type markers.
    */
   public async connect(): Promise<void> {
-    const port = this.options.port || 4321;
-    const host = this.options.host || "127.0.0.1";
+    const port = this.options.port ?? 4321;
+    const host = this.options.host ?? "127.0.0.1";
 
     return new Promise((resolve, reject) => {
       if (this.options.isHost) {
@@ -38,16 +43,15 @@ export class LocalTransport {
           this.socket = incomingSocket;
           this.setupSocketListeners();
 
-          console.log(
-            "\n\r\x1b[32m[Transport] Local peer linked via TCP proxy.\x1b[0m"
-          );
+          console.log("\n\r\x1b[32m[Transport] Local peer connected.\x1b[0m");
         });
 
         this.server.listen(port, host, () => {
           resolve();
         });
 
-        this.server.on("error", (err) => reject(err));
+        // this.server.on("error", (err) => reject(err));
+        this.server.on("error", reject);
       } else {
         // CLIENT MODE: Dial target network gateway
         this.socket = net.createConnection({ port, host }, () => {
@@ -67,9 +71,10 @@ export class LocalTransport {
     if (!this.socket) return;
 
     this.socket.on("data", (chunk: Buffer) => {
-      if (this.onDataCallback) {
-        // Direct cast down to cross-runtime platform-agnostic byte array arrays
-        this.onDataCallback(new Uint8Array(chunk));
+      const payload = new Uint8Array(chunk);
+
+      for (const listener of this.dataListeners) {
+        listener(payload);
       }
     });
 
@@ -94,11 +99,14 @@ export class LocalTransport {
   /**
    * Enforces single-execution cleanup loop mechanics during network drops
    */
+
   private handleSocketTermination(): void {
-    if (this.onCloseCallback) {
-      this.onCloseCallback();
-      // Nullify callback hook immediately after execution to prevent dual-trigger cascades
-      this.onCloseCallback = null;
+    if (this.terminated) return;
+
+    this.terminated = true;
+
+    for (const listener of this.closeListeners) {
+      listener();
     }
   }
 
@@ -116,15 +124,25 @@ export class LocalTransport {
   /**
    * Assigns application-level interceptors to incoming transport stream payloads
    */
-  public onData(callback: (data: Uint8Array) => void): void {
-    this.onDataCallback = callback;
+
+  public onData(callback: (data: Uint8Array) => void): () => void {
+    this.dataListeners.add(callback);
+
+    return () => {
+      this.dataListeners.delete(callback);
+    };
   }
 
   /**
    * Assigns application-level cleanup tasks to transport lifecycle dropping events
    */
-  public onClose(callback: () => void): void {
-    this.onCloseCallback = callback;
+
+  public onClose(callback: () => void): () => void {
+    this.closeListeners.add(callback);
+
+    return () => {
+      this.closeListeners.delete(callback);
+    };
   }
 
   /**
@@ -133,7 +151,11 @@ export class LocalTransport {
   public close(): void {
     this.socket?.destroy();
     this.server?.close();
+
     this.socket = null;
     this.server = null;
+
+    this.dataListeners.clear();
+    this.closeListeners.clear();
   }
 }
