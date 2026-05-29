@@ -4,6 +4,6 @@
     "outDir": "./dist",
     "rootDir": "./src"
   },
-  "include": ["src/local-tcp-cli-share.ts", "src/index.ts"],
+  "include": ["src"],
   "references": []
 }
