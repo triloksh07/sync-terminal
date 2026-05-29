@@ -38,6 +38,30 @@ export class ClientSession {
   }
 
   /**
+   * Instantiates session directly into ACTIVE state.
+   * Used when approval happens out-of-band (e.g., via Signaling Server).
+   */
+  public startApproved(): void {
+    if (this.state !== ClientState.IDLE) {
+      throw new Error("Session already started");
+    }
+
+    this.state = ClientState.ACTIVE;
+    this.approvalState = ApprovalState.APPROVED;
+
+    // CRITICAL: Actually hook up the transport streams!
+    this.unsubscribeData = this.transport.onData((array) =>
+      this.handleIncomingPacket(array)
+    );
+
+    this.unsubscribeClose = this.transport.onClose(() =>
+      this.handleTransportClosure()
+    );
+
+    this.callbacks.onApprovalStatus(ApprovalState.APPROVED);
+  }
+
+  /**
    * Initiates session startup.
    *
    * Current implementation:
