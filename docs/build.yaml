@@ -17,4 +17,4 @@ node ./dist/prod-host-agent.js share --dir ~/
 node ./dist/prod-cli-agent.js connect 004321
 
 node ./dist/index.js share --dir ~/
-node ./dist/index.js connect 004321
+node ./dist/index.js connect 
