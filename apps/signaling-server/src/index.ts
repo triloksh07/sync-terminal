@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from "ws";
 import crypto from "crypto";
 
-// 1. Explicit Signaling Frame Contracts (JSON, not MessagePack)
+// 1. Explicit Signaling Frame Contracts
 export enum SignalType {
   HOST_REGISTER = "HOST_REGISTER",
   HOST_REGISTERED = "HOST_REGISTERED",
@@ -101,35 +101,47 @@ function handleSignalingMessage(ws: WebSocket, msg: SignalMessage) {
       break;
 
     case SignalType.CLIENT_LOOKUP:
-      const targetSession = activeSessions.get(msg.payload.code);
-      if (!targetSession) {
+      // const targetSession = activeSessions.get(msg.payload.code);
+
+      // if (!targetSession) {
+      //   ws.send(
+      //     JSON.stringify({
+      //       type: SignalType.MATCH_FAILED,
+      //       payload: { reason: "Invalid or expired session code" },
+      //     })
+      //   );
+      //   return;
+      // }
+
+      if (!activeSessions.has(msg.payload.code)) {
         ws.send(
           JSON.stringify({
             type: SignalType.MATCH_FAILED,
-            payload: { reason: "Invalid or expired session code" },
+            payload: { reason: "Invalid code" },
           })
         );
         return;
       }
 
+      // if (!targetSession) return;
       // 3. The Bouncer: Reject concurrent connections immediately at the server level
-      if (
-        targetSession.clientSocket &&
-        targetSession.clientSocket.readyState === WebSocket.OPEN
-      ) {
-        ws.send(
-          JSON.stringify({
-            type: SignalType.MATCH_FAILED,
-            payload: {
-              reason: "Host is currently busy with another connection attempt.",
-            },
-          })
-        );
-        return;
-      }
+      // if (
+      //   targetSession.clientSocket &&
+      //   targetSession.clientSocket.readyState === WebSocket.OPEN
+      // ) {
+      //   ws.send(
+      //     JSON.stringify({
+      //       type: SignalType.MATCH_FAILED,
+      //       payload: {
+      //         reason: "Host is currently busy with another connection attempt.",
+      //       },
+      //     })
+      //   );
+      //   return;
+      // }
 
       // Lock the room for this client
-      targetSession.clientSocket = ws;
+      // targetSession.clientSocket = ws;
       // Link the client socket to the session temporarily for signaling routing
       socketToSession.set(ws, msg.payload.code);
 
@@ -140,12 +152,12 @@ function handleSignalingMessage(ws: WebSocket, msg: SignalMessage) {
           payload: { role: "client" },
         })
       );
-      targetSession.hostSocket.send(
-        JSON.stringify({
-          type: SignalType.MATCH_SUCCESS,
-          payload: { role: "host" },
-        })
-      );
+      // targetSession.hostSocket.send(
+      //   JSON.stringify({
+      //     type: SignalType.MATCH_SUCCESS,
+      //     payload: { role: "host" },
+      //   })
+      // );
       break;
 
     case SignalType.SIGNAL_FORWARD:
@@ -160,22 +172,22 @@ function handleSignalingMessage(ws: WebSocket, msg: SignalMessage) {
 
       // In a real 1-to-1 WebRTC setup, if the sender is the host, forward to the client.
       // Since this is a temporary mapping, we will broadcast to the "other" socket in the room.
-      // wss.clients.forEach((client) => {
-      //   if (
-      //     client !== ws &&
-      //     socketToSession.get(client) === activeCode &&
-      //     client.readyState === WebSocket.OPEN
-      //   ) {
-      //     client.send(JSON.stringify(msg));
-      //   }
-      // });
-      
+      wss.clients.forEach((client) => {
+        if (
+          client !== ws &&
+          socketToSession.get(client) === activeCode &&
+          client.readyState === WebSocket.OPEN
+        ) {
+          client.send(JSON.stringify(msg));
+        }
+      });
+
       // Only route data securely between the two paired sockets
-      if (ws === session.hostSocket && session.clientSocket) {
-        session.clientSocket.send(JSON.stringify(msg));
-      } else if (ws === session.clientSocket) {
-        session.hostSocket.send(JSON.stringify(msg));
-      }
+      // if (ws === session.hostSocket && session.clientSocket) {
+      //   session.clientSocket.send(JSON.stringify(msg));
+      // } else if (ws === session.clientSocket) {
+      //   session.hostSocket.send(JSON.stringify(msg));
+      // }
       break;
   }
 }

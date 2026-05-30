@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import WebSocket from "ws";
+import crypto from "crypto";
 import { LocalTransport } from "@syncpty/transport";
 import { saveTerminalState, restoreTerminalState } from "@syncpty/pty-core";
 import { ClientSession, ApprovalState } from "@syncpty/client-core";
@@ -21,6 +22,7 @@ program
     console.log(`[➔] Looking up session ${code}...`);
 
     const ws = new WebSocket("ws://localhost:8080");
+    const myClientId = crypto.randomBytes(4).toString("hex"); // Generate Unique ID
 
     ws.on("open", () => {
       ws.send(
@@ -51,12 +53,13 @@ program
           ws.send(
             JSON.stringify({
               type: SignalType.APPROVAL_REQUEST,
-              payload: { identity },
+              payload: { identity, clientId: myClientId },
             })
           );
           break;
 
         case SignalType.APPROVAL_RESPONSE:
+          if (msg.payload.clientId !== myClientId) return;
           if (!msg.payload.approved) {
             console.log("\x1b[31m[✗] Session denied by host.\x1b[0m");
             process.exit(0);

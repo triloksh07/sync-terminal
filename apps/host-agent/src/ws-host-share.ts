@@ -11,6 +11,9 @@ import {
 import { Protocol, PacketType } from "@syncpty/protocol";
 import { LocalTransport, type Transport } from "@syncpty/transport";
 
+const approvalQueue: { identity: string; clientId: string }[] = [];
+let isApproving = false;
+
 const program = new Command();
 program.name("syncpty").version("0.0.6");
 
@@ -64,46 +67,51 @@ program
           );
           break;
 
+        // case SignalType.APPROVAL_REQUEST:
+        //   // Mutex Lock: Prevent concurrent approval prompts
+        //   if (isApproving) {
+        //     ws.send(
+        //       JSON.stringify({
+        //         type: SignalType.APPROVAL_RESPONSE,
+        //         payload: { approved: false, reason: "Host is busy" },
+        //       })
+        //     );
+        //     return;
+        //   }
+
+        //   isApproving = true;
+        //   // 2. Out-of-band Approval via WS
+        //   requestHostPermission(msg.payload.identity, async (approved) => {
+        //     ws.send(
+        //       JSON.stringify({
+        //         type: SignalType.APPROVAL_RESPONSE,
+        //         payload: { approved },
+        //       })
+        //     );
+
+        //     if (approved) {
+        //       // 3. Handshake complete! NOW we spin up the binary transport.
+        //       const TARGET_PORT = 4321;
+        //       const transport = new LocalTransport({
+        //         isHost: true,
+        //         port: TARGET_PORT,
+        //       });
+        //       await transport.connect();
+
+        //       await executeActiveStreamingSession(
+        //         resolvedDir,
+        //         options.readonly,
+        //         transport
+        //       );
+        //     } else {
+        //       console.log(`\x1b[31m[-] Connection rejected by host.\x1b[0m`);
+        //     }
+        //   });
+        //   break;
+
         case SignalType.APPROVAL_REQUEST:
-          // Mutex Lock: Prevent concurrent approval prompts
-          if (isApproving) {
-            ws.send(
-              JSON.stringify({
-                type: SignalType.APPROVAL_RESPONSE,
-                payload: { approved: false, reason: "Host is busy" },
-              })
-            );
-            return;
-          }
-
-          isApproving = true;
-          // 2. Out-of-band Approval via WS
-          requestHostPermission(msg.payload.identity, async (approved) => {
-            ws.send(
-              JSON.stringify({
-                type: SignalType.APPROVAL_RESPONSE,
-                payload: { approved },
-              })
-            );
-
-            if (approved) {
-              // 3. Handshake complete! NOW we spin up the binary transport.
-              const TARGET_PORT = 4321;
-              const transport = new LocalTransport({
-                isHost: true,
-                port: TARGET_PORT,
-              });
-              await transport.connect();
-
-              await executeActiveStreamingSession(
-                resolvedDir,
-                options.readonly,
-                transport
-              );
-            } else {
-              console.log(`\x1b[31m[-] Connection rejected by host.\x1b[0m`);
-            }
-          });
+          approvalQueue.push(msg.payload);
+          processQueue(ws, resolvedDir, options.readonly);
           break;
       }
     });
@@ -112,6 +120,48 @@ program
       console.error("Could not reach Signaling Server on port 8080")
     );
   });
+
+function processQueue(ws: WebSocket, resolvedDir: string, isReadOnly: boolean) {
+  if (isApproving || approvalQueue.length === 0) return;
+
+  isApproving = true;
+  const nextClient = approvalQueue.shift()!;
+
+  requestHostPermission(nextClient.identity, async (approved) => {
+    isApproving = false;
+
+    // Reply specifically to the client we just evaluated
+    ws.send(
+      JSON.stringify({
+        type: SignalType.APPROVAL_RESPONSE,
+        payload: { approved, clientId: nextClient.clientId },
+      })
+    );
+
+    if (approved) {
+      // If approved, automatically reject anyone else waiting in the queue
+      approvalQueue.forEach((pending) => {
+        ws.send(
+          JSON.stringify({
+            type: SignalType.APPROVAL_RESPONSE,
+            payload: { approved: false, clientId: pending.clientId },
+          })
+        );
+      });
+      approvalQueue.length = 0; // Empty the queue
+
+      // Boot the binary transport
+      const TARGET_PORT = 4321;
+      const transport = new LocalTransport({ isHost: true, port: TARGET_PORT });
+      await transport.connect();
+      await executeActiveStreamingSession(resolvedDir, isReadOnly, transport);
+    } else {
+      console.log(`\x1b[31m[-] Connection rejected by host.\x1b[0m`);
+      // Recursively process the next knock in line
+      processQueue(ws, resolvedDir, isReadOnly);
+    }
+  });
+}
 
 function requestHostPermission(
   clientEmail: string,
@@ -208,9 +258,19 @@ async function executeActiveStreamingSession(
     process.stdin.pause();
     restoreTerminalState("host_session");
 
+    // FIX 1: Explicitly destroy the TCP Server and kill the ghost shell
+    transport.close();
+    // sessionPTY.kill();
+
     console.log(
       `\n\r\x1b[33m⚠️  [SyncPTY Notification] Remote client detached cleanly. Local control restored.\x1b[0m\n`
     );
+
+    // Unlock the Host so it can accept new connections again
+    isApproving = false;
+
+    // Check if anyone else knocked while we were in the session
+    // processQueue(ws, workingDir, isReadOnly);
   });
 
   sessionPTY.onExit((exitCode) => {
