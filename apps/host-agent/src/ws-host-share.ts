@@ -10,7 +10,11 @@ import {
   restoreTerminalState,
 } from "@syncpty/pty-core";
 import { Protocol, PacketType } from "@syncpty/protocol";
-import { LocalTransport, type Transport } from "@syncpty/transport";
+import {
+  LocalTransport,
+  type Transport,
+  RTCTransport,
+} from "@syncpty/transport";
 
 const approvalQueue: { identity: string; clientId: string }[] = [];
 let isApproving = false;
@@ -373,8 +377,15 @@ async function processQueue(
       })
     );
 
-    const TARGET_PORT = 4321;
-    const transport = new LocalTransport({ isHost: true, port: TARGET_PORT });
+    console.log(
+      `\r\n\x1b[90m[WebRTC] Negotiating Peer-to-Peer connection...\x1b[0m`
+    );
+
+    // const TARGET_PORT = 4321;
+    // const transport = new LocalTransport({ isHost: true, port: TARGET_PORT });
+
+    const transport = new RTCTransport({ ws, isHost: true });
+
     await transport.connect();
 
     await executeActiveStreamingSession(resolvedDir, isReadOnly, transport);

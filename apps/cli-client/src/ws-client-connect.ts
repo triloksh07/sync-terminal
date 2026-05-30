@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import WebSocket from "ws";
 import crypto from "crypto";
-import { LocalTransport } from "@syncpty/transport";
+import { LocalTransport, RTCTransport } from "@syncpty/transport";
 import { saveTerminalState, restoreTerminalState } from "@syncpty/pty-core";
 import { ClientSession, ApprovalState } from "@syncpty/client-core";
 
@@ -65,18 +65,20 @@ program
             process.exit(0);
           }
 
-          console.log("[✓] Session approved! Bridging transport...");
+          // console.log("[✓] Session approved! Bridging transport...");
+          console.log("[✓] Session approved! Negotiating WebRTC...");
 
           // Close WS, we don't need it anymore. Hand off to Transport.
-          ws.close();
+          // ws.close();
 
-          await startBinarySession();
+          // await startBinarySession();
+          await startBinarySession(ws);
           break;
       }
     });
   });
 
-async function startBinarySession() {
+async function startBinarySession(ws: WebSocket) {
   let isConsoleRawMode = false;
   const cleanExit = () => {
     if (isConsoleRawMode) {
@@ -90,8 +92,11 @@ async function startBinarySession() {
   };
 
   // Fall back to Local Transport on hardcoded 4321 for testing
-  const transport = new LocalTransport({ isHost: false, port: 4321 });
+  const transport = new RTCTransport({ ws, isHost: false });
+  // const transport = new LocalTransport({ isHost: false, port: 4321 });
   await transport.connect();
+
+  ws.close();
 
   const session = new ClientSession({
     transport,
