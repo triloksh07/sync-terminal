@@ -227,6 +227,10 @@ class DynamicLobby {
   async prompt(): Promise<string | null> {
     this.active = true;
     this.selectedIndex = 0;
+
+    // FAILSAFE: Nuke any dangling background listeners from other modules
+    process.stdin.removeAllListeners("data");
+
     process.stdin.setRawMode(true);
     process.stdin.resume();
     this.render();
@@ -286,18 +290,29 @@ class DynamicLobby {
   }
 
   private render() {
-    console.clear();
-    console.log(
-      "\r\n\x1b[35m[SyncPTY Lobby]\x1b[0m Incoming connection requests:"
+    // console.clear();
+    // console.log(
+    //   "\r\n\x1b[35m[SyncPTY Lobby]\x1b[0m Incoming connection requests:"
+    // );
+
+    // \x1Bc is the native ANSI code to clear the screen and reset the cursor
+    process.stdout.write("\x1Bc");
+    // Use synchronous process.stdout.write instead of console.log
+    process.stdout.write(
+      "\r\n\x1b[35m[SyncPTY Lobby]\x1b[0m Incoming connection requests:\r\n"
     );
+
     approvalQueue.forEach((c, i) => {
       const prefix = i === this.selectedIndex ? "\x1b[36m> \x1b[0m" : "  ";
-      console.log(`\r${prefix}👤 ${c.identity}`);
+      // console.log(`\r${prefix}👤 ${c.identity}`);
+      process.stdout.write(`\r${prefix}👤 ${c.identity}\r\n`);
     });
     const exitPrefix =
       this.selectedIndex === approvalQueue.length ? "\x1b[31m> \x1b[0m" : "  ";
-    console.log(`\r${exitPrefix}❌ Deny All & Clear Queue\n\r`);
-    console.log("\r\x1b[90m(Use arrow keys and hit Enter)\x1b[0m");
+    // console.log(`\r${exitPrefix}❌ Deny All & Clear Queue\n\r`);
+    // console.log("\r\x1b[90m(Use arrow keys and hit Enter)\x1b[0m");
+    process.stdout.write(`\r${exitPrefix}❌ Deny All & Clear Queue\r\n\r\n`);
+    process.stdout.write("\r\x1b[90m(Use arrow keys and hit Enter)\x1b[0m\r\n");
   }
 }
 // Update processQueue to use the new Lobby
@@ -510,15 +525,27 @@ async function executeActiveStreamingSession(
     } catch (err) {}
   });
 
+  // Assign the listener to a named function so it can be destroyed
+  const handleHostInput = (chunk: Buffer) => {
+    try {
+      sessionPTY.write(chunk.toString());
+    } catch (err) {
+      // Catch writes to a dead PTY just in case
+    }
+  };
   // Bind local Host keyboard typing directly to the PTY engine
   process.stdin.setRawMode(true);
   process.stdin.resume();
-  process.stdin.on("data", (chunk) => {
-    sessionPTY.write(chunk.toString());
-  });
+  // process.stdin.on("data", (chunk) => {
+  //   sessionPTY.write(chunk.toString());
+  // });
+  process.stdin.on("data", handleHostInput);
 
   // Monitor Client Disconnections (FIN signals caught by our updated transport layer)
   transport.onClose(() => {
+    // Detach the listener immediately!
+    process.stdin.off("data", handleHostInput);
+
     process.stdin.setRawMode(false);
     process.stdin.pause();
     restoreTerminalState("host_session");
