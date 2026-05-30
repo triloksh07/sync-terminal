@@ -11,6 +11,7 @@ export enum SignalType {
   SIGNAL_FORWARD = "SIGNAL_FORWARD",
   APPROVAL_REQUEST = "APPROVAL_REQUEST",
   APPROVAL_RESPONSE = "APPROVAL_RESPONSE",
+  CLIENT_DISCONNECT = "CLIENT_DISCONNECT",
 }
 
 interface SignalMessage {
@@ -27,6 +28,7 @@ interface SessionNode {
 
 const activeSessions = new Map<string, SessionNode>(); // Key: 6-digit code
 const socketToSession = new Map<WebSocket, string>(); // Key: Socket -> 6-digit code
+const socketToClient = new Map<WebSocket, string>(); // Track Client IDs
 
 const wss = new WebSocketServer({ port: 8080 });
 
@@ -36,6 +38,12 @@ wss.on("connection", (ws) => {
   ws.on("message", (rawMessage) => {
     try {
       const msg = JSON.parse(rawMessage.toString()) as SignalMessage;
+
+      // Track the Client ID when they ask for approval
+      if (msg.type === SignalType.APPROVAL_REQUEST && msg.payload.clientId) {
+        socketToClient.set(ws, msg.payload.clientId);
+      }
+
       handleSignalingMessage(ws, msg);
     } catch (err) {
       console.error("Malformed signaling frame dropped.");
@@ -65,10 +73,21 @@ wss.on("connection", (ws) => {
           console.log(
             `[Teardown] Client left. Session ${code} is open for new connections.`
           );
+
+          const clientId = socketToClient.get(ws);
+          if (clientId && session.hostSocket.readyState === WebSocket.OPEN) {
+            session.hostSocket.send(
+              JSON.stringify({
+                type: SignalType.CLIENT_DISCONNECT,
+                payload: { clientId },
+              })
+            );
+          }
         }
       }
 
       socketToSession.delete(ws);
+      socketToClient.delete(ws); // new
       // console.log(`[Teardown] Session ${code} destroyed.`);
     }
   });

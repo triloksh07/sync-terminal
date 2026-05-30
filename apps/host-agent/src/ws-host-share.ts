@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
+// import { select, isCancel } from "@clack/prompts";
 import path from "path";
 import WebSocket from "ws";
 import {
@@ -13,6 +14,7 @@ import { LocalTransport, type Transport } from "@syncpty/transport";
 
 const approvalQueue: { identity: string; clientId: string }[] = [];
 let isApproving = false;
+let currentLobby: DynamicLobby | null = null; // Track the active lobby
 
 const program = new Command();
 program.name("syncpty").version("0.0.6");
@@ -24,6 +26,7 @@ enum SignalType {
   MATCH_SUCCESS = "MATCH_SUCCESS",
   APPROVAL_REQUEST = "APPROVAL_REQUEST",
   APPROVAL_RESPONSE = "APPROVAL_RESPONSE",
+  CLIENT_DISCONNECT = "CLIENT_DISCONNECT",
 }
 
 program
@@ -109,9 +112,36 @@ program
         //   });
         //   break;
 
+        // case SignalType.APPROVAL_REQUEST:
+        //   approvalQueue.push(msg.payload);
+        //   processQueue(ws, resolvedDir, options.readonly);
+        //   break;
+
         case SignalType.APPROVAL_REQUEST:
           approvalQueue.push(msg.payload);
-          processQueue(ws, resolvedDir, options.readonly);
+          if (isApproving && currentLobby) {
+            currentLobby.redraw(); // Instantly update the UI!
+          } else {
+            processQueue(ws, resolvedDir, options.readonly);
+          }
+          break;
+
+        case SignalType.CLIENT_DISCONNECT:
+          const dropId = msg.payload.clientId;
+          const idx = approvalQueue.findIndex((c) => c.clientId === dropId);
+          if (idx !== -1) {
+            approvalQueue.splice(idx, 1); // Remove the dead client
+            if (isApproving && currentLobby) {
+              if (approvalQueue.length === 0) {
+                currentLobby.cancel();
+                console.log(
+                  `\n\r\x1b[90m[Lobby] All pending requests disconnected. Waiting...\x1b[0m`
+                );
+              } else {
+                currentLobby.redraw(); // Shrink the list instantly
+              }
+            }
+          }
           break;
       }
     });
@@ -121,72 +151,307 @@ program
     );
   });
 
-function processQueue(ws: WebSocket, resolvedDir: string, isReadOnly: boolean) {
+// function processQueue(ws: WebSocket, resolvedDir: string, isReadOnly: boolean) {
+//   if (isApproving || approvalQueue.length === 0) return;
+
+//   isApproving = true;
+//   const nextClient = approvalQueue.shift()!;
+
+//   requestHostPermission(nextClient.identity, async (approved) => {
+//     isApproving = false;
+
+//     // Reply specifically to the client we just evaluated
+//     ws.send(
+//       JSON.stringify({
+//         type: SignalType.APPROVAL_RESPONSE,
+//         payload: { approved, clientId: nextClient.clientId },
+//       })
+//     );
+
+//     if (approved) {
+//       // If approved, automatically reject anyone else waiting in the queue
+//       approvalQueue.forEach((pending) => {
+//         ws.send(
+//           JSON.stringify({
+//             type: SignalType.APPROVAL_RESPONSE,
+//             payload: { approved: false, clientId: pending.clientId },
+//           })
+//         );
+//       });
+//       approvalQueue.length = 0; // Empty the queue
+
+//       // Boot the binary transport
+//       const TARGET_PORT = 4321;
+//       const transport = new LocalTransport({ isHost: true, port: TARGET_PORT });
+//       await transport.connect();
+//       await executeActiveStreamingSession(resolvedDir, isReadOnly, transport);
+//     } else {
+//       console.log(`\x1b[31m[-] Connection rejected by host.\x1b[0m`);
+//       // Recursively process the next knock in line
+//       processQueue(ws, resolvedDir, isReadOnly);
+//     }
+//   });
+// }
+
+// function requestHostPermission(
+//   clientEmail: string,
+//   onDecision: (approved: boolean) => void
+// ) {
+//   console.log(`\n\r\x1b[33m⚠️  [Incoming Connection Attempt]\x1b[0m`);
+//   console.log(`\rUser Identity (Verified): \x1b[36m${clientEmail}\x1b[0m`);
+//   process.stdout.write(`\rApprove remote access control? (y/N): `);
+
+//   process.stdin.setRawMode(true);
+//   process.stdin.resume();
+
+//   process.stdin.once("data", (data) => {
+//     const input = data.toString().trim();
+
+//     process.stdin.setRawMode(false);
+//     process.stdin.pause();
+
+//     if (input === "y" || input === "Y") {
+//       onDecision(true);
+//     } else {
+//       onDecision(false);
+//     }
+//   });
+// }
+
+// Custom Reactive UI Class
+class DynamicLobby {
+  public selectedIndex = 0;
+  private active = false;
+  private resolveFn: ((id: string | null) => void) | null = null;
+
+  async prompt(): Promise<string | null> {
+    this.active = true;
+    this.selectedIndex = 0;
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+    this.render();
+
+    return new Promise((resolve) => {
+      this.resolveFn = resolve;
+      process.stdin.on("data", this.handleInput);
+    });
+  }
+
+  private handleInput = (data: Buffer) => {
+    const key = data.toString();
+    if (key === "\u0003") {
+      // Ctrl+C
+      this.finish("EXIT");
+    } else if (key === "\u001b[A") {
+      // Up Arrow
+      this.selectedIndex = Math.max(0, this.selectedIndex - 1);
+      this.render();
+    } else if (key === "\u001b[B") {
+      // Down Arrow
+      this.selectedIndex = Math.min(
+        approvalQueue.length,
+        this.selectedIndex + 1
+      );
+      this.render();
+    } else if (key === "\r") {
+      // Enter
+      if (this.selectedIndex === approvalQueue.length) {
+        this.finish("REJECT_ALL");
+      } else {
+        this.finish(approvalQueue[this.selectedIndex].clientId);
+      }
+    }
+  };
+
+  private finish(result: string | null) {
+    this.active = false;
+    process.stdin.off("data", this.handleInput);
+    process.stdin.setRawMode(false);
+    process.stdin.pause();
+    if (this.resolveFn) this.resolveFn(result);
+  }
+
+  public cancel() {
+    if (this.active) this.finish(null);
+  }
+
+  public redraw() {
+    if (this.active) {
+      // Prevent cursor from going out of bounds if clients dropped
+      if (this.selectedIndex > approvalQueue.length) {
+        this.selectedIndex = approvalQueue.length;
+      }
+      this.render();
+    }
+  }
+
+  private render() {
+    console.clear();
+    console.log(
+      "\r\n\x1b[35m[SyncPTY Lobby]\x1b[0m Incoming connection requests:"
+    );
+    approvalQueue.forEach((c, i) => {
+      const prefix = i === this.selectedIndex ? "\x1b[36m> \x1b[0m" : "  ";
+      console.log(`\r${prefix}👤 ${c.identity}`);
+    });
+    const exitPrefix =
+      this.selectedIndex === approvalQueue.length ? "\x1b[31m> \x1b[0m" : "  ";
+    console.log(`\r${exitPrefix}❌ Deny All & Clear Queue\n\r`);
+    console.log("\r\x1b[90m(Use arrow keys and hit Enter)\x1b[0m");
+  }
+}
+// Update processQueue to use the new Lobby
+
+async function processQueue(
+  ws: WebSocket,
+  resolvedDir: string,
+  isReadOnly: boolean
+) {
   if (isApproving || approvalQueue.length === 0) return;
-
   isApproving = true;
-  const nextClient = approvalQueue.shift()!;
 
-  requestHostPermission(nextClient.identity, async (approved) => {
+  currentLobby = new DynamicLobby();
+  const selectedId = await currentLobby.prompt();
+  currentLobby = null;
+
+  if (selectedId === "EXIT") {
+    process.exit(0);
+  }
+
+  // Handle Cancellation / Reject All
+  if (!selectedId || selectedId === "REJECT_ALL") {
+    approvalQueue.forEach((pending) => {
+      ws.send(
+        JSON.stringify({
+          type: SignalType.APPROVAL_RESPONSE,
+          payload: { approved: false, clientId: pending.clientId },
+        })
+      );
+    });
+    approvalQueue.length = 0;
     isApproving = false;
+    console.log(`\r\n\x1b[90m[Lobby] Requests cleared. Waiting...\x1b[0m\r\n`);
+    return;
+  }
 
-    // Reply specifically to the client we just evaluated
+  // Handle Selection
+  const selectedClient = approvalQueue.find((c) => c.clientId === selectedId);
+
+  // Deny everyone else
+  approvalQueue.forEach((pending) => {
+    if (pending.clientId !== selectedId) {
+      ws.send(
+        JSON.stringify({
+          type: SignalType.APPROVAL_RESPONSE,
+          payload: { approved: false, clientId: pending.clientId },
+        })
+      );
+    }
+  });
+  approvalQueue.length = 0;
+
+  if (selectedClient) {
     ws.send(
       JSON.stringify({
         type: SignalType.APPROVAL_RESPONSE,
-        payload: { approved, clientId: nextClient.clientId },
+        payload: { approved: true, clientId: selectedClient.clientId },
       })
     );
 
-    if (approved) {
-      // If approved, automatically reject anyone else waiting in the queue
-      approvalQueue.forEach((pending) => {
-        ws.send(
-          JSON.stringify({
-            type: SignalType.APPROVAL_RESPONSE,
-            payload: { approved: false, clientId: pending.clientId },
-          })
-        );
-      });
-      approvalQueue.length = 0; // Empty the queue
+    const TARGET_PORT = 4321;
+    const transport = new LocalTransport({ isHost: true, port: TARGET_PORT });
+    await transport.connect();
 
-      // Boot the binary transport
-      const TARGET_PORT = 4321;
-      const transport = new LocalTransport({ isHost: true, port: TARGET_PORT });
-      await transport.connect();
-      await executeActiveStreamingSession(resolvedDir, isReadOnly, transport);
-    } else {
-      console.log(`\x1b[31m[-] Connection rejected by host.\x1b[0m`);
-      // Recursively process the next knock in line
-      processQueue(ws, resolvedDir, isReadOnly);
-    }
-  });
+    await executeActiveStreamingSession(resolvedDir, isReadOnly, transport);
+  } else {
+    // Failsafe: They were removed from the queue right as you hit Enter
+    console.log(
+      "\r\n\x1b[31m[-] Client disconnected while deciding.\x1b[0m\r\n"
+    );
+    isApproving = false;
+    processQueue(ws, resolvedDir, isReadOnly); // Loop back if others remain
+  }
 }
 
-function requestHostPermission(
-  clientEmail: string,
-  onDecision: (approved: boolean) => void
-) {
-  console.log(`\n\r\x1b[33m⚠️  [Incoming Connection Attempt]\x1b[0m`);
-  console.log(`\rUser Identity (Verified): \x1b[36m${clientEmail}\x1b[0m`);
-  process.stdout.write(`\rApprove remote access control? (y/N): `);
+// --- TUI via clack/prompts ---
+// async function processQueue(
+//   ws: WebSocket,
+//   resolvedDir: string,
+//   isReadOnly: boolean
+// ) {
+//   // Only show the lobby if we aren't currently streaming and there are clients waiting
+//   if (isApproving || approvalQueue.length === 0) return;
 
-  process.stdin.setRawMode(true);
-  process.stdin.resume();
+//   isApproving = true;
 
-  process.stdin.once("data", (data) => {
-    const input = data.toString().trim();
+//   // 1. Build the dynamic list of choices from the queue
+//   const options = approvalQueue.map((client) => ({
+//     value: client.clientId,
+//     label: `👤 ${client.identity}`,
+//   }));
 
-    process.stdin.setRawMode(false);
-    process.stdin.pause();
+//   options.push({ value: "REJECT_ALL", label: "❌ Deny All & Clear Queue" });
 
-    if (input === "y" || input === "Y") {
-      onDecision(true);
-    } else {
-      onDecision(false);
-    }
-  });
-}
+//   console.log("\n"); // Add spacing for the TUI
+
+//   // 2. Render the interactive Arrow-Key UI
+//   const selectedId = await select({
+//     message: `Incoming connection requests (${approvalQueue.length} pending):`,
+//     options: options,
+//   });
+
+//   // 3. Handle Cancellation / Reject All
+//   if (isCancel(selectedId) || selectedId === "REJECT_ALL") {
+//     approvalQueue.forEach((pending) => {
+//       ws.send(
+//         JSON.stringify({
+//           type: SignalType.APPROVAL_RESPONSE,
+//           payload: { approved: false, clientId: pending.clientId },
+//         })
+//       );
+//     });
+//     approvalQueue.length = 0; // Empty queue
+//     isApproving = false;
+//     console.log(`\x1b[90m[Lobby] All requests cleared. Waiting...\x1b[0m`);
+//     return;
+//   }
+
+//   // 4. Handle Selection
+//   const selectedClient = approvalQueue.find((c) => c.clientId === selectedId);
+
+//   // Send DENIED to everyone who wasn't selected
+//   approvalQueue.forEach((pending) => {
+//     if (pending.clientId !== selectedId) {
+//       ws.send(
+//         JSON.stringify({
+//           type: SignalType.APPROVAL_RESPONSE,
+//           payload: { approved: false, clientId: pending.clientId },
+//         })
+//       );
+//     }
+//   });
+
+//   // Empty the queue since we made a decision
+//   approvalQueue.length = 0;
+
+//   if (selectedClient) {
+//     // Send APPROVED to the winner
+//     ws.send(
+//       JSON.stringify({
+//         type: SignalType.APPROVAL_RESPONSE,
+//         payload: { approved: true, clientId: selectedClient.clientId },
+//       })
+//     );
+
+//     // Boot the binary transport
+//     const TARGET_PORT = 4321;
+//     const transport = new LocalTransport({ isHost: true, port: TARGET_PORT });
+//     await transport.connect();
+
+//     await executeActiveStreamingSession(resolvedDir, isReadOnly, transport);
+//   }
+// }
+// --- TUI ---
 
 async function executeActiveStreamingSession(
   workingDir: string,
