@@ -45,3 +45,7 @@ temp/
 plan
 detail-spec.txt
 .windsurf/
+lab
+README.md
+payload/
+*payload/*

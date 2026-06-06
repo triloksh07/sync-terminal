@@ -18,6 +18,22 @@ importers:
         specifier: ^5.3.3
         version: 5.9.3
 
+  apps/cli:
+    dependencies:
+      '@syncpty/cli-client':
+        specifier: workspace:*
+        version: link:../cli-client
+      '@syncpty/host-agent':
+        specifier: workspace:*
+        version: link:../host-agent
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
   apps/cli-client:
     dependencies:
       '@syncpty/client-core':

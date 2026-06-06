@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import { Command } from "commander";
 import WebSocket from "ws";
 import crypto from "crypto";
