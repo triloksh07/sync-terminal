@@ -26,12 +26,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache: false
 
       - name: Install pnpm
         run: npm install -g pnpm
@@ -43,7 +44,7 @@ jobs:
         shell: bash
         run: bash master-build.sh
 
-      - name: Download Portable Node Binary
+      - name: Download Portable Node 24 Binary
         shell: bash
         run: |
           mkdir -p node-bin
@@ -53,13 +54,14 @@ jobs:
             unzip -j node.zip "*/node.exe" -d node-bin/
           else
             curl -o node.tar.xz "${{ matrix.node_url }}"
-            tar -xf node.tar.xz --strip-components=2 -C node-bin/ "*/bin/node"
+            # Added --wildcards to safely extract the binary
+            tar -xf node.tar.xz --wildcards --strip-components=2 -C node-bin/ "*/bin/node"
           fi
 
       - name: Compile Go Wrapper
         shell: bash
         run: |
-          go mod init syncpty
+          go mod init syncpty || true
           go build -o ${{ matrix.artifact_name }} main.go
 
       - name: Upload Artifact
