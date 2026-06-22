@@ -41,7 +41,7 @@ jobs:
 
       - name: Build Payload
         shell: bash
-        run: bash build.sh
+        run: bash master-build.sh
 
       - name: Download Portable Node Binary
         shell: bash
