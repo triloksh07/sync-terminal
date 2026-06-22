@@ -119,6 +119,10 @@ node build_pkg.js
 rm build_pkg.js
 
 echo "📥 5. Installing External Dependencies & Native Bindings..."
-pnpm install --ignore-workspace --prod
+# pnpm install --ignore-workspace --prod
+
+# We MUST use npm here, not pnpm. npm creates a flat, symlink-free 
+# directory structure which is mandatory for the Go compiler to embed correctly.
+npm install --omit=dev
 
 echo "✅ Payload built successfully."
