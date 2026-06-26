@@ -30,9 +30,11 @@ const activeSessions = new Map<string, SessionNode>(); // Key: 6-digit code
 const socketToSession = new Map<WebSocket, string>(); // Key: Socket -> 6-digit code
 const socketToClient = new Map<WebSocket, string>(); // Track Client IDs
 
-const wss = new WebSocketServer({ port: 8080 });
+const PORT = parseInt(process.env.PORT || "8080", 10);
 
-console.log("🚀 SyncPTY Matchmaker Signaling Server running on port 8080");
+const wss = new WebSocketServer({ port: PORT });
+
+console.log(`🚀 SyncPTY Matchmaker Signaling Server running on port ${PORT}`);
 
 wss.on("connection", (ws) => {
   ws.on("message", (rawMessage) => {
