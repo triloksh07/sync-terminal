@@ -47,7 +47,13 @@ program
     const resolvedDir = path.resolve(options.dir);
     console.log(`\x1b[35m[SyncPTY Host]\x1b[0m Connecting to Matchmaker...`);
 
-    const ws = new WebSocket("ws://localhost:8080");
+    const productionURL = "wss://syncpty-matchmaker.onrender.com";
+
+    // If the developer explicitly provides a URL in the environment, use it. 
+    // Otherwise, default to the production matchmaker.
+    const MATCHMAKER_URL = process.env.SYNCPTY_MATCHMAKER_URL || productionURL;
+
+    const ws = new WebSocket(MATCHMAKER_URL);
 
     ws.on("open", () => {
       // 1. Ask Server for a unique code
