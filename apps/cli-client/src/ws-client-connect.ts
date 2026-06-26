@@ -21,7 +21,14 @@ program
   .action(async (code) => {
     console.log(`[➔] Looking up session ${code}...`);
 
-    const ws = new WebSocket("ws://localhost:8080");
+    const productionURL = "wss://syncpty-matchmaker.onrender.com";
+
+    // If the developer explicitly provides a URL in the environment, use it. 
+    // Otherwise, default to the production matchmaker.
+    const MATCHMAKER_URL = process.env.SYNCPTY_MATCHMAKER_URL || productionURL;
+
+    const ws = new WebSocket(MATCHMAKER_URL);
+
     const myClientId = crypto.randomBytes(4).toString("hex"); // Generate Unique ID
 
     ws.on("open", () => {
