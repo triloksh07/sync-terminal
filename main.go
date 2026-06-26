@@ -11,9 +11,13 @@ import (
 //go:embed payload/* node-bin/*
 var embeddedFiles embed.FS
 
+// Version is dynamically injected at build time via Go ldflags. 
+// It defaults to "dev" for local sandbox testing.
+var Version = "dev"
+
 func main() {
 	// 1. Define where the payload will unpack on the user's machine
-	cacheDir := filepath.Join(os.TempDir(), "syncpty-cache-v1")
+	cacheDir := filepath.Join(os.TempDir(), "syncpty-cache-"+Version)
 
 	// 2. Unpack if it doesn't exist yet
 	if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
