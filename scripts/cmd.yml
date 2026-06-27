@@ -1,0 +1,6 @@
+
+# linux or macOS
+curl -fsSL https://raw.githubusercontent.com/triloksh07/sync-terminal/main/scripts/install.sh | bash
+
+# windows
+irm https://raw.githubusercontent.com/triloksh07/sync-terminal/main/scripts/install.ps1 | iex
