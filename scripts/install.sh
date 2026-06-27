@@ -29,7 +29,7 @@ curl -fL -o "$TMP_FILE" "$DOWNLOAD_URL"
 
 echo ""
 echo "🔧 Configuring system paths ($DEST_DIR)..."
-echo "🔐 Requesting elevated permissions to install globally. You may be prompted for your password."
+echo "🔐 Sudo access required to safely place the binary into /usr/local/bin."
 
 # Move the binary to the global path and grant execution permissions
 sudo mv "$TMP_FILE" "$DEST_FILE"
