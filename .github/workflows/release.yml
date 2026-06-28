@@ -1,32 +1,46 @@
-name: Build Standalone Binaries
+name: Build and Publish Standalone Binaries
 
 on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch: # Allows you to trigger it manually from the Actions tab
-  release:
-    types: [created]
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  # ==========================================
+  # STAGE A: THE FACTORY (Parallel Execution)
+  # Compiles code on isolated VMs and stashes
+  # the binaries in temporary internal lockers.
+  # ==========================================
+  build_artifacts:
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
+          # Linux Target
           - os: ubuntu-latest
             artifact_name: syncpty-linux
-            # Upgraded to Node 24.16.0 Linux binary
             node_url: "https://nodejs.org/dist/v24.16.0/node-v24.16.0-linux-x64.tar.xz"
+          
+          # Windows Target
           - os: windows-latest
             artifact_name: syncpty-windows.exe
-            # Upgraded to Node 24.16.0 Windows binary
             node_url: "https://nodejs.org/dist/v24.16.0/node-v24.16.0-win-x64.zip"
+          
+          # macOS Apple Silicon (M-Series) Target
+          - os: macos-latest
+            artifact_name: syncpty-macos-arm64
+            node_url: "https://nodejs.org/dist/v24.16.0/node-v24.16.0-darwin-arm64.tar.gz"
+            
+          # macOS Intel Target
+          - os: macos-13 
+            artifact_name: syncpty-macos-amd64
+            node_url: "https://nodejs.org/dist/v24.16.0/node-v24.16.0-darwin-x64.tar.gz"
 
     steps:
       - name: Checkout Code
@@ -43,7 +57,7 @@ jobs:
           go-version: '1.22'
           cache: false
 
-      - name: Install pnpm
+      - name: Install Dependencies
         run: npm install -g pnpm
 
       - name: Build Typescript
@@ -53,19 +67,28 @@ jobs:
         shell: bash
         run: bash master-build.sh
 
-      - name: Download Portable Node 24 Binary
+      - name: Download and Extract Portable Node
         shell: bash
         run: |
-          mkdir -p node-bin
-          # Download and extract the raw Node executable into the node-bin folder
+          mkdir -p node-bin temp-ext
+          
           if [ "${{ runner.os }}" == "Windows" ]; then
-            curl -o node.zip "${{ matrix.node_url }}"
-            unzip -j node.zip "*/node.exe" -d node-bin/
+            curl -L -o node.zip "${{ matrix.node_url }}"
+            unzip -q -j node.zip "*/node.exe" -d node-bin/
           else
-            curl -o node.tar.xz "${{ matrix.node_url }}"
-            # Added --wildcards to safely extract the binary
-            tar -xf node.tar.xz --wildcards --strip-components=2 -C node-bin/ "*/bin/node"
+            # Use capital -O to preserve the original filename from the URL (.tar.gz vs .tar.xz)
+            curl -L -O "${{ matrix.node_url }}"
+            FILENAME=$(basename "${{ matrix.node_url }}")
+            
+            # Extract quietly to a temporary folder to bypass bsdtar wildcard issues
+            tar -xf "$FILENAME" -C temp-ext
+            
+            # Find the inner executable and securely move it to the target directory
+            find temp-ext -type f -name "node" -exec mv {} node-bin/ \;
           fi
+          
+          # Maintain ephemeral runner hygiene
+          rm -rf temp-ext node.zip *.tar.*
 
       - name: Compile Go Wrapper with Dynamic Version
         shell: bash
@@ -75,18 +98,61 @@ jobs:
           # The -s -w flags strip debug info to make the final binary smaller
           go build -ldflags="-s -w -X main.Version=${{ github.ref_name }}" -o ${{ matrix.artifact_name }} main.go
 
-      - name: Upload Artifact (Actions Tab)
+      - name: Inject Version into Artifact Filename
+        shell: bash
+        run: |
+          # Extract the Git tag that triggered the run
+          VERSION=${{ github.ref_name }}
+          
+          # Preserve the .exe extension explicitly for Windows targets
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            TARGET_NAME="syncpty-windows-${VERSION}.exe"
+            mv syncpty-windows.exe "$TARGET_NAME"
+          else
+            TARGET_NAME="${{ matrix.artifact_name }}-${VERSION}"
+            mv ${{ matrix.artifact_name }} "$TARGET_NAME"
+          fi
+          
+          # Export to environment for the upload step
+          echo "UPLOAD_NAME=$TARGET_NAME" >> $GITHUB_ENV
+
+      - name: Stash Binary in Temporary Workspace
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.artifact_name }}
+          # Isolate each file in its own temporary locker
+          name: ${{ env.UPLOAD_NAME }}
+          path: ${{ env.UPLOAD_NAME }}
+          # Automatically clear server storage to prevent bloat
+          retention-days: 1 
 
+  # ==========================================
+  # STAGE B: THE PUBLISHER (Sequential Execution)
+  # Waits for the factory, sweeps the internal
+  # lockers, and executes a single API upload.
+  # ==========================================
+  publish_release:
+    name: Publish Official Release
+    # Force this job to wait until the factory matrix finishes entirely
+    needs: build_artifacts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # Gatekeeper: Only execute the upload sweep if a formal tag was pushed
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Retrieve Binaries from Temporary Workspace
+        uses: actions/download-artifact@v4
+        with:
+          # Gather all isolated artifacts into a single local directory
+          path: ./dist
+          # Flatten the structure so files are not nested in subfolders
+          merge-multiple: true 
+          
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
-        # Only create/upload to a release if this was triggered by a Git Tag
-        if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: ${{ matrix.artifact_name }}
+          files: ./dist/*
           draft: false
           prerelease: ${{ contains(github.ref, '-') }}
         env:
