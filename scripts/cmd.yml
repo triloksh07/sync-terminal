@@ -4,3 +4,25 @@ curl -fsSL https://raw.githubusercontent.com/triloksh07/sync-terminal/main/scrip
 
 # windows
 irm https://raw.githubusercontent.com/triloksh07/sync-terminal/main/scripts/install.ps1 | iex
+
+# specific version
+
+# linux
+VERSION="v0.0.1-alpha.2" curl -fsSL https://raw.githubusercontent.com/triloksh07/sync-terminal/main/scripts/install.sh | bash
+
+# win
+$env:VERSION="v0.0.1-alpha.2"; irm https://raw.githubusercontent.com/triloksh07/sync-terminal/main/scripts/install.ps1 | iex
+
+---
+
+**Scenario A: "Just give me the newest version." (Default)**
+The user runs the standard one-liner. The script realizes the `$VERSION` variable is empty, hits the API, grabs `v0.0.1-alpha.3` (or whatever is newest tomorrow), and installs it.
+
+* **Mac/Linux:** `curl -fsSL https://raw.githubusercontent.com/triloksh07/sync-terminal/main/scripts/install.sh | bash`
+* **Windows:** `irm https://raw.githubusercontent.com/triloksh07/sync-terminal/main/scripts/install.ps1 | iex`
+
+**Scenario B: "I need to install a specific version." (The Override)**
+The user injects the environment variable directly into the one-liner. The script sees the variable exists, skips the API call completely, and downloads exactly what they asked for.
+
+* **Mac/Linux:** `VERSION="v0.0.1-alpha.2" curl -fsSL https://raw.githubusercontent.com/triloksh07/sync-terminal/main/scripts/install.sh | bash`
+* **Windows:** `$env:VERSION="v0.0.1-alpha.2"; irm https://raw.githubusercontent.com/triloksh07/sync-terminal/main/scripts/install.ps1 | iex`

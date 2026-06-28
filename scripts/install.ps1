@@ -1,5 +1,8 @@
 $ErrorActionPreference = 'Stop'
 
+# Safely append TLS 1.2 for older Windows 10 machines without downgrading Windows 11 machines
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+
 Write-Host "🚀 Booting SyncPTY Installer for Windows..." -ForegroundColor Cyan
 Write-Host "=======================================" -ForegroundColor Cyan
 
@@ -8,7 +11,7 @@ Write-Host "=======================================" -ForegroundColor Cyan
 if ([string]::IsNullOrWhiteSpace($env:VERSION)) {
     Write-Host "🔍 Querying GitHub for the latest release..." -ForegroundColor Cyan
     try {
-        $Releases = Invoke-RestMethod -Uri "https://api.github.com/repos/triloksh07/sync-terminal/releases"
+        $Releases = Invoke-RestMethod -Uri "https://api.github.com/repos/triloksh07/sync-terminal/releases" -UseBasicParsing
         if ($Releases.Count -eq 0) {
             Write-Host "❌ Error: Failed to fetch the latest version from GitHub." -ForegroundColor Red
             exit 1
@@ -41,7 +44,7 @@ Write-Host "⬇️  Downloading SyncPTY Engine..." -ForegroundColor Cyan
 Write-Host "🌐 Source: GitHub Releases ($Version) - Target: $TargetFile" -ForegroundColor Cyan
 
 # Download the executable directly. (PowerShell native Invoke-WebRequest includes a progress bar by default)
-Invoke-WebRequest -Uri $DownloadUrl -OutFile $FinalExePath
+Invoke-WebRequest -Uri $DownloadUrl -OutFile $FinalExePath -UseBasicParsing
 
 # Inject into the Windows PATH (User Level)
 $UserPath = [Environment]::GetEnvironmentVariable("PATH", "User")
