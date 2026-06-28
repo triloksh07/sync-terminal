@@ -14,10 +14,9 @@ if [ "$OS" = "linux" ]; then
 elif [ "$OS" = "darwin" ]; then
     if [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then
         TARGET="syncpty-macos-arm64"
-    elif [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
-        TARGET="syncpty-macos-amd64"
     else
-        echo "❌ Error: Unsupported macOS architecture: $ARCH"
+        echo "❌ Error: SyncPTY currently only supports Apple Silicon (M-Series) Macs."
+        echo "Intel Macs (x86_64) are not supported."
         exit 1
     fi
 else

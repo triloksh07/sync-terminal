@@ -36,11 +36,6 @@ jobs:
           - os: macos-latest
             artifact_name: syncpty-macos-arm64
             node_url: "https://nodejs.org/dist/v24.16.0/node-v24.16.0-darwin-arm64.tar.gz"
-            
-          # macOS Intel Target
-          - os: macos-13 
-            artifact_name: syncpty-macos-amd64
-            node_url: "https://nodejs.org/dist/v24.16.0/node-v24.16.0-darwin-x64.tar.gz"
 
     steps:
       - name: Checkout Code
