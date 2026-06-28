@@ -3,9 +3,29 @@ $ErrorActionPreference = 'Stop'
 Write-Host "🚀 Booting SyncPTY Installer for Windows..." -ForegroundColor Cyan
 Write-Host "=======================================" -ForegroundColor Cyan
 
-# Define the Single Source of Truth
-$Version = "v0.0.1-alpha.2"
-$DownloadUrl = "https://github.com/triloksh07/sync-terminal/releases/download/$Version/syncpty-windows.exe"
+# Resolve the Version (Dynamic Default vs Explicit Override)
+# If the user didn't set $env:VERSION before running the script, fetch it automatically.
+if ([string]::IsNullOrWhiteSpace($env:VERSION)) {
+    Write-Host "🔍 Querying GitHub for the latest release..." -ForegroundColor Cyan
+    try {
+        $Releases = Invoke-RestMethod -Uri "https://api.github.com/repos/triloksh07/sync-terminal/releases"
+        if ($Releases.Count -eq 0) {
+            Write-Host "❌ Error: Failed to fetch the latest version from GitHub." -ForegroundColor Red
+            exit 1
+        }
+        $Version = $Releases[0].tag_name
+    } catch {
+        Write-Host "❌ Error: Failed to query GitHub API. Check your internet connection." -ForegroundColor Red
+        exit 1
+    }
+} else {
+    $Version = $env:VERSION
+    Write-Host "🎯 Explicit version requested: $Version" -ForegroundColor Cyan
+}
+
+# Construct the versioned filename exactly as GitHub hosts it
+$TargetFile = "syncpty-windows-$Version.exe"
+$DownloadUrl = "https://github.com/triloksh07/sync-terminal/releases/download/$Version/$TargetFile"
 
 # Define Paths
 $InstallDir = "$env:LOCALAPPDATA\SyncPTY"
@@ -17,8 +37,8 @@ if (!(Test-Path $InstallDir)) {
     New-Item -ItemType Directory -Path $InstallDir | Out-Null
 }
 
-Write-Host "⬇️  Downloading SyncPTY Engine..."
-Write-Host "🌐 Source: GitHub Releases ($Version)"
+Write-Host "⬇️  Downloading SyncPTY Engine..." -ForegroundColor Cyan
+Write-Host "🌐 Source: GitHub Releases ($Version) - Target: $TargetFile" -ForegroundColor Cyan
 
 # Download the executable directly. (PowerShell native Invoke-WebRequest includes a progress bar by default)
 Invoke-WebRequest -Uri $DownloadUrl -OutFile $FinalExePath

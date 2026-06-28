@@ -25,10 +25,24 @@ else
     exit 1
 fi
 
-VERSION="v0.0.1-alpha.2"
+# Resolve the Version
+# If the user didn't set $VERSION before running the script, fetch it automatically.
+if [ -z "$VERSION" ]; then
+    echo "🔍 Querying GitHub for the latest release..."
+    # This hits the API, finds the first occurrence of "tag_name", and extracts the value.
+    VERSION=$(curl -s "https://api.github.com/repos/triloksh07/sync-terminal/releases" | grep -m 1 '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    
+    if [ -z "$VERSION" ]; then
+        echo "❌ Error: Failed to fetch the latest version from GitHub."
+        exit 1
+    fi
+else
+    echo "🎯 Explicit version requested: $VERSION"
+fi
 
-# Define the download URL for the raw binary release
-DOWNLOAD_URL="https://github.com/triloksh07/sync-terminal/releases/download/${VERSION}/syncpty-linux"
+# Construct the versioned filename exactly as GitHub hosts it
+TARGET_FILE="${TARGET}-${VERSION}"
+DOWNLOAD_URL="https://github.com/triloksh07/sync-terminal/releases/download/${VERSION}/${TARGET_FILE}"
 
 # Define temporary download location and final system paths
 TMP_FILE="/tmp/syncpty-download"
@@ -36,7 +50,7 @@ DEST_DIR="/usr/local/bin"
 DEST_FILE="$DEST_DIR/syncpty"
 
 echo "⬇️  Downloading SyncPTY Engine..."
-echo "🌐 Source: GitHub Releases (${VERSION})"
+echo "🌐 Source: GitHub Releases ($VERSION) - Target: $TARGET_FILE"
 
 # Download the raw executable directly with a visual progress bar
 curl -fL -o "$TMP_FILE" "$DOWNLOAD_URL"
