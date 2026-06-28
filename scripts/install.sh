@@ -6,7 +6,21 @@ echo "======================================="
 
 # Detect OS to ensure compatibility
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
-if [ "$OS" != "linux" ] && [ "$OS" != "darwin" ]; then
+ARCH="$(uname -m)"
+
+# Route to the correct compiled binary
+if [ "$OS" = "linux" ]; then
+    TARGET="syncpty-linux"
+elif [ "$OS" = "darwin" ]; then
+    if [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then
+        TARGET="syncpty-macos-arm64"
+    elif [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
+        TARGET="syncpty-macos-amd64"
+    else
+        echo "❌ Error: Unsupported macOS architecture: $ARCH"
+        exit 1
+    fi
+else
     echo "❌ Error: Unsupported OS: $OS. Please use the Windows installer."
     exit 1
 fi
